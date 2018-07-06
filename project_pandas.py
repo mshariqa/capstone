@@ -59,8 +59,9 @@ def init():
         
         
 gen = init()
-gen
-gen.size
+n = len(gen) 
+gen = np.reshape(gen,(n,1))
+gen.shape
 
 """Evaluate"""
 def updatedEvalString(s):
@@ -82,36 +83,41 @@ def score(inEval):
     length = len(inEval)
     indMatrix = pd.DataFrame()
     i=0
-    while(length!=0):
-        evalString = inEval.pop()
-        evalString = updatedEvalString(evalString)
-        """Exception handling against log(0)"""
+    listEval = list(inEval)
+    for ele in listEval:
+        evalString = updatedEvalString(ele)
+        #Exception handling against log(0)
         try:
             indMatrix[str.format('col{0}',i)] = eval(evalString)    
         except ZeroDivisionError:
             continue     
         i = i+1
-        length = len(inEval)
     """Remove inf with 1 """
     indMatrix = indMatrix.replace([np.inf, -np.inf], 1)
     regr = ElasticNetCV(cv=5, random_state=0)
     regr.fit(indMatrix,y)
     return (regr.score(indMatrix,y))
 
-#print(score(gen[0]))
+#print(score(gen[1]))
 
 pc= 0.5
 
 def crossover(gen,pc):
     lenGen = len(gen)
-    crossArray = np.random.choice(gen,int(pc*lenGen), replace=False)
-    r2 = np.zeros(len(gen))
-    genR2 = np.append(gen, r2, axis=1)
-    print(genR2)
-    print(r2.shape)
-    print(gen.shape)
-    return 0
+    crossArray = gen[np.random.choice(gen.shape[0],int(pc*lenGen), replace = False), :]
+    r2 = np.zeros(len(crossArray))
+    r2 = np.reshape(r2,(len(r2),1))
+    crossArrayR2 = np.append(crossArray, r2, axis=1)
+    for genEle in crossArrayR2:
+        genEle[1] = score(genEle[0])
+    print(crossArrayR2)
+    crossArrayR2 = crossArrayR2[crossArrayR2[:,1].argsort()[::-1]]
+    newGen = np.setdiff1d(gen, crossArray)
+    newGen = np.append(newGen,crossArrayR2[:,0])
+    newGen = np.reshape(newGen,(len(newGen),1))
+    return newGen
 
 def mutation():
+    
     return 0
 
