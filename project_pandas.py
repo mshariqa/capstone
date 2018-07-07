@@ -34,7 +34,9 @@ test.columns = ['X1','X2','X3','X4','X5','y']
 
 X = test.iloc[:,:5]
 y = test.iloc[:,5]
+
 funList = ["np.log", "*", "np.exp", "np.sqrt"]
+setOpList = ["union","sym_diff"]
 
 popsize = 15
 
@@ -80,7 +82,6 @@ linRMSE = mean_squared_error(y, yhat)
 linRMSE"""
 
 def score(inEval):
-    length = len(inEval)
     indMatrix = pd.DataFrame()
     i=0
     listEval = list(inEval)
@@ -102,19 +103,44 @@ def score(inEval):
 
 pc= 0.5
 
+def getCrossover(crossEle1, crossEle2):
+    ranOp = random.choice(setOpList)
+    if ranOp == "union":
+        return crossEle1.union(crossEle2)
+    elif ranOp == "intersection":
+        return np.intersect1d(crossEle1, crossEle2)
+    elif ranOp == "sym_diff":
+        return crossEle1.symmetric_difference(crossEle2)
+    
 def crossover(gen,pc):
     lenGen = len(gen)
-    crossArray = gen[np.random.choice(gen.shape[0],int(pc*lenGen), replace = False), :]
-    r2 = np.zeros(len(crossArray))
+    numCross = int(pc*lenGen)
+    i = 0
+    crossGen = np.array([]) #crossovered population
+    gen = np.reshape(gen,(len(gen),1))
+    r2 = np.zeros(len(gen))
     r2 = np.reshape(r2,(len(r2),1))
-    crossArrayR2 = np.append(crossArray, r2, axis=1)
-    for genEle in crossArrayR2:
+    
+    # Added R^2 element in gen
+    gen = np.append(gen, r2, axis=1)
+    for genEle in gen:
         genEle[1] = score(genEle[0])
-    print(crossArrayR2)
-    crossArrayR2 = crossArrayR2[crossArrayR2[:,1].argsort()[::-1]]
-    newGen = np.setdiff1d(gen, crossArray)
-    newGen = np.append(newGen,crossArrayR2[:,0])
-    newGen = np.reshape(newGen,(len(newGen),1))
+    #Calulation score for the randomly selected individual from population
+    while i<numCross:
+        #Selecting random values from the population for crossover
+        crossArray = gen[np.random.choice(gen.shape[0],int(pc*lenGen), replace = False), :]
+        crossArray = crossArray[crossArray[:,1].argsort()[::-1]]
+        if numCross == 0:
+            print("break")
+        elif numCross == 1:
+            crossGen = np.append(crossGen, crossArray[0,0])
+        else:
+            crossGen = np.append(crossGen,getCrossover(crossArray[0,0], crossArray[1,0]))
+        i = i+1        
+    gen = gen[gen[:,1].argsort()[::-1]]
+    # Selection and crossover to the new generation 
+    newGen = gen[:,0]
+    newGen[numCross+1:] = crossGen
     return newGen
 
 pm = 0.5
