@@ -143,5 +143,17 @@ def crossover(gen,pc):
     newGen[numCross+1:] = crossGen
     return newGen
 
-def mutation():    
-    return 0
+pm = 0.5
+def mutation(gen, pm):
+    lenGen = len(gen)
+    mutArray = gen[np.random.choice(gen.shape[0],int(pm*lenGen), replace = False), :]
+    for genEle in mutArray:
+        n = np.random.choice(2)
+        if (n%2 == 0 or len(genEle[0])==1):
+            genEle[0].add(randFeature())
+        else:
+            genEle[0].pop()
+    newGen = np.setdiff1d(gen, mutArray)
+    newGen = np.append(newGen,mutArray)
+    return newGen
+
