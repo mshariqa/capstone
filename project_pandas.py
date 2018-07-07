@@ -124,8 +124,7 @@ def mutation(gen, pm):
     for genEle in mutArray:
         n = np.random.choice(2)
         if (n%2 == 0 or len(genEle[0])==1):
-            feature = randFeature()
-            genEle[0].add(feature)
+            genEle[0].add(randFeature())
         else:
             genEle[0].pop()
     newGen = np.setdiff1d(gen, mutArray)
