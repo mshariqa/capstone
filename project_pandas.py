@@ -2,7 +2,7 @@
 """
 Created on Sat May 26 13:51:55 2018
 
-@author: Shariq
+@author: Isha and Shariq
 """
 
 import random
@@ -16,10 +16,9 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.linear_model import ElasticNetCV
 from sklearn.datasets import make_regression
 
-
-"""a = np.array([10,20,30,40,50])
-aString = "np.sqrt(a)"
-eval(aString)"""
+def replaceZeroes(data):
+    data[data == 0] = 10**-4
+    return data
 
 test = pd.read_csv("test.csv")
 test.iloc[0,0]
@@ -27,6 +26,8 @@ test.iloc[0,0]
 """Normalizing the dataset using preprocessing"""
 min_max_scaler = preprocessing.MinMaxScaler()
 x_scaled = min_max_scaler.fit_transform(test)
+#Replace all 0 with a minimum value close to zero to resolve log(0) issue
+x_scaled = replaceZeroes(x_scaled)
 test = pd.DataFrame(x_scaled)
 
 test.columns = ['X1','X2','X3','X4','X5','y']
@@ -50,21 +51,17 @@ def randFeature():
 """Transformation"""
 def init():
     gen1 = np.array([])
-    while gen1.size < 15:
+    while len(gen1) < 15:
         n=random.randint(1,X.shape[1])
-        setOfInd = set() 
+        setOfInd = set()
         while len(setOfInd) < n:
             feature = randFeature()
             setOfInd.add(feature)
-        gen1 = np.append(gen1,setOfInd)
+        if(setOfInd not in gen1):
+            gen1 = np.append(gen1,setOfInd)
+    gen1 = np.reshape(gen1,(len(gen1),1))    
     return gen1
         
-        
-gen = init()
-n = len(gen) 
-gen = np.reshape(gen,(n,1))
-gen.shape
-
 """Evaluate"""
 def updatedEvalString(s):
     """Indentifying the features and filtering out the unique features"""
@@ -72,14 +69,6 @@ def updatedEvalString(s):
     for m in featureNum:
         s = s.replace(str.format("X{0}",m),str.format("X['X{0}']",m))
     return s
-
-"""Run ML algorithm to find the accuracy of each individual(Cross validation)"""
-"""regressor = LinearRegression()
-regressor.fit(indMatrix, y)
-yhat = regressor.predict(indMatrix)
-
-linRMSE = mean_squared_error(y, yhat)
-linRMSE"""
 
 def score(inEval):
     indMatrix = pd.DataFrame()
@@ -95,14 +84,11 @@ def score(inEval):
         i = i+1
     """Remove inf with 1 """
     indMatrix = indMatrix.replace([np.inf, -np.inf], 1)
-    regr = ElasticNetCV(cv=5, random_state=0)
+    regr = ElasticNetCV(cv=5, random_state=0, max_iter=5000)
     regr.fit(indMatrix,y)
     return (regr.score(indMatrix,y))
 
-#print(score(gen[1]))
-
 pc= 0.5
-
 def getCrossover(crossEle1, crossEle2):
     ranOp = random.choice(setOpList)
     if ranOp == "union":
@@ -113,11 +99,11 @@ def getCrossover(crossEle1, crossEle2):
         return crossEle1.symmetric_difference(crossEle2)
     
 def crossover(gen,pc):
+    gen = init()
     lenGen = len(gen)
     numCross = int(pc*lenGen)
     i = 0
     crossGen = np.array([]) #crossovered population
-    gen = np.reshape(gen,(len(gen),1))
     r2 = np.zeros(len(gen))
     r2 = np.reshape(r2,(len(r2),1))
     
@@ -128,10 +114,10 @@ def crossover(gen,pc):
     #Calulation score for the randomly selected individual from population
     while i<numCross:
         #Selecting random values from the population for crossover
-        crossArray = gen[np.random.choice(gen.shape[0],int(pc*lenGen), replace = False), :]
+        crossArray = gen[np.random.choice(gen.shape[0],numCross , replace = False), :]
         crossArray = crossArray[crossArray[:,1].argsort()[::-1]]
         if numCross == 0:
-            print("break")
+            break
         elif numCross == 1:
             crossGen = np.append(crossGen, crossArray[0,0])
         else:
@@ -140,11 +126,14 @@ def crossover(gen,pc):
     gen = gen[gen[:,1].argsort()[::-1]]
     # Selection and crossover to the new generation 
     newGen = gen[:,0]
-    newGen[numCross+1:] = crossGen
+    #print("numCross", numCross, "lenGen", lenGen)
+    newGen[lenGen - len(crossGen):] = crossGen
+    newGen = np.reshape(newGen,(len(newGen),1))
     return newGen
 
 pm = 0.5
 def mutation(gen, pm):
+    gen = init()
     lenGen = len(gen)
     mutArray = gen[np.random.choice(gen.shape[0],int(pm*lenGen), replace = False), :]
     for genEle in mutArray:
@@ -155,5 +144,33 @@ def mutation(gen, pm):
             genEle[0].pop()
     newGen = np.setdiff1d(gen, mutArray)
     newGen = np.append(newGen,mutArray)
+    newGen = np.reshape(newGen,(len(newGen),1))
     return newGen
 
+def main():
+    iterations = 10
+    i = 0 
+    newGen = init()
+    indbest = set()
+    fbest = 0 
+    while i < iterations:
+        r2 = np.zeros(len(newGen))
+        r2 = np.reshape(r2,(len(r2),1))
+    
+        # Added R^2 element in gen
+        newGen = np.append(newGen, r2, axis=1)
+        for genEle in newGen:
+            genEle[1] = score(genEle[0])
+    
+        newGen = newGen[newGen[:,1].argsort()[::-1]]
+        if fbest < newGen[0,1]:
+            indbest = newGen[0,0]
+            fbest = newGen[0,1]
+        print(i)
+        newGen = crossover(newGen,pc)
+        newGen = mutation(newGen,pm)
+        i = i+1
+    print(indbest)
+    print(fbest)
+    
+main()
