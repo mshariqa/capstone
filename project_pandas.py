@@ -10,37 +10,35 @@ import pandas as pd
 import numpy as np
 import re
 from sklearn import preprocessing
-from sklearn.linear_model import LinearRegression
-import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.linear_model import ElasticNetCV
-from sklearn.datasets import make_regression
 
 def replaceZeroes(data):
     data[data == 0] = 10**-4
     return data
 
 test = pd.read_csv("test.csv")
-test.iloc[0,0]
 
-"""Normalizing the dataset using preprocessing"""
+#Normalizing the dataset using preprocessing
 min_max_scaler = preprocessing.MinMaxScaler()
 x_scaled = min_max_scaler.fit_transform(test)
+
 #Replace all 0 with a minimum value close to zero to resolve log(0) issue
 x_scaled = replaceZeroes(x_scaled)
 test = pd.DataFrame(x_scaled)
 
+# Renaming the dataset columns 
 test.columns = ['X1','X2','X3','X4','X5','y']
-
 
 X = test.iloc[:,:5]
 y = test.iloc[:,5]
 
+# List of non-linear functions for feature transformation
 funList = ["np.log", "*", "np.exp", "np.sqrt"]
+
+# set operations to be performed for crossover
 setOpList = ["union","sym_diff"]
 
-popsize = 15
-
+# Function to create random non linear features 
 def randFeature():
     ranFun = random.choice(funList)
     if ranFun == "*":
@@ -48,7 +46,7 @@ def randFeature():
     else:
         return ''.join([ranFun,'(',str(random.choice(X.columns)),')'])
 
-"""Transformation"""
+# Creates initial population
 def init():
     gen1 = np.array([])
     while len(gen1) < 15:
@@ -62,7 +60,8 @@ def init():
     gen1 = np.reshape(gen1,(len(gen1),1))    
     return gen1
         
-"""Evaluate"""
+# Converts the individual set element string to feature of X
+# eg. 'np.exp(X2)' is converted to 'np.exp(X['X2'])'
 def updatedEvalString(s):
     """Indentifying the features and filtering out the unique features"""
     featureNum = np.unique(re.findall('\d+', s))
@@ -70,6 +69,7 @@ def updatedEvalString(s):
         s = s.replace(str.format("X{0}",m),str.format("X['X{0}']",m))
     return s
 
+# Calculate R^2 value for an individual 
 def score(inEval):
     indMatrix = pd.DataFrame()
     i=0
@@ -82,13 +82,14 @@ def score(inEval):
         except ZeroDivisionError:
             continue     
         i = i+1
-    """Remove inf with 1 """
+    # Remove inf with 1
     indMatrix = indMatrix.replace([np.inf, -np.inf], 1)
+    # Linear regression with elastic net
     regr = ElasticNetCV(cv=5, random_state=0, max_iter=5000)
     regr.fit(indMatrix,y)
     return (regr.score(indMatrix,y))
 
-pc= 0.5
+# Set crossover function
 def getCrossover(crossEle1, crossEle2):
     ranOp = random.choice(setOpList)
     if ranOp == "union":
@@ -98,8 +99,8 @@ def getCrossover(crossEle1, crossEle2):
     elif ranOp == "sym_diff":
         return crossEle1.symmetric_difference(crossEle2)
     
+# Crossover for next generation
 def crossover(gen,pc):
-    gen = init()
     lenGen = len(gen)
     numCross = int(pc*lenGen)
     i = 0
@@ -131,9 +132,8 @@ def crossover(gen,pc):
     newGen = np.reshape(newGen,(len(newGen),1))
     return newGen
 
-pm = 0.5
+# Mutation for next generation  
 def mutation(gen, pm):
-    gen = init()
     lenGen = len(gen)
     mutArray = gen[np.random.choice(gen.shape[0],int(pm*lenGen), replace = False), :]
     for genEle in mutArray:
@@ -147,30 +147,50 @@ def mutation(gen, pm):
     newGen = np.reshape(newGen,(len(newGen),1))
     return newGen
 
-def main():
+# Main function
+def geneticAlgorithm():
+    # Number of iterations of genetic algorithm 
     iterations = 10
-    i = 0 
+    i = 0
+    # Crossover probability:
+    # Used for calculating the population percentage for crossover 
+    pc = 0.5
+    # Mutation probability:
+    # Used for calculating the population percentage for mutation 
+    pm = 0.5
+    # Initial population
     newGen = init()
     indbest = set()
     fbest = 0 
     while i < iterations:
+        # To add R^2 column in gen
         r2 = np.zeros(len(newGen))
         r2 = np.reshape(r2,(len(r2),1))
-    
-        # Added R^2 element in gen
         newGen = np.append(newGen, r2, axis=1)
+        # Calculates the R^2 score corresponding to each individual 
         for genEle in newGen:
             genEle[1] = score(genEle[0])
-    
+        
+        # Sort individual as per their r^2 values 
         newGen = newGen[newGen[:,1].argsort()[::-1]]
+        
+        # Find the best individual in the generation and compare it with best individual so far
         if fbest < newGen[0,1]:
             indbest = newGen[0,0]
             fbest = newGen[0,1]
-        print(i)
+        
+        print("iterations:",i)
+        print("Best Individual:",indbest)
+        print("Best fitness:",fbest)
+        
+        # Crossover for next generation
         newGen = crossover(newGen,pc)
+        
+        # Mutation for next generation
         newGen = mutation(newGen,pm)
         i = i+1
-    print(indbest)
-    print(fbest)
+    print("Final best Individual:",indbest)
+    print("Final best fitness:",fbest)
     
-main()
+geneticAlgorithm()
+
