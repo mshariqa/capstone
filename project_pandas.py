@@ -6,6 +6,7 @@ Created on Sat May 26 13:51:55 2018
 """
 
 import random
+import copy
 import pandas as pd
 import numpy as np
 import re
@@ -16,7 +17,8 @@ def replaceZeroes(data):
     data[data == 0] = 10**-4
     return data
 
-test = pd.read_csv("test.csv")
+test = pd.read_csv("kc_house_data.csv")
+test.shape
 
 #Normalizing the dataset using preprocessing
 min_max_scaler = preprocessing.MinMaxScaler()
@@ -27,10 +29,16 @@ x_scaled = replaceZeroes(x_scaled)
 test = pd.DataFrame(x_scaled)
 
 # Renaming the dataset columns 
-test.columns = ['X1','X2','X3','X4','X5','y']
+#test.columns = ['X1','X2','X3','X4','X5','y']
+XColsSize = test.shape[1] - 1
+XColsName = ['X{}'.format(x+1) for x in range(0, XColsSize)]
+XColsName.append('y')
+XColsName
 
-X = test.iloc[:,:5]
-y = test.iloc[:,5]
+test.columns = XColsName
+
+X = test.iloc[:,:-1]
+y = test.iloc[:,-1]
 
 # List of non-linear functions for feature transformation
 funList = ["np.log", "*", "np.exp", "np.sqrt"]
@@ -49,7 +57,7 @@ def randFeature():
 # Creates initial population
 def init():
     gen1 = np.array([])
-    while len(gen1) < 15:
+    while len(gen1) < 25:
         n=random.randint(1,X.shape[1])
         setOfInd = set()
         while len(setOfInd) < n:
@@ -64,9 +72,13 @@ def init():
 # eg. 'np.exp(X2)' is converted to 'np.exp(X['X2'])'
 def updatedEvalString(s):
     """Indentifying the features and filtering out the unique features"""
-    featureNum = np.unique(re.findall('\d+', s))
-    for m in featureNum:
-        s = s.replace(str.format("X{0}",m),str.format("X['X{0}']",m))
+    if (s.find("*") == -1):
+        featureNum = np.unique(re.findall('\d+', s))
+        for m in featureNum:
+            s = s.replace(str.format("X{0}",m),str.format("X['X{0}']",m))
+    else:
+        pos = s.find("*")
+        s = str.format("X['{0}']*X['{1}']",s[0:pos],s[pos+1:])
     return s
 
 # Calculate R^2 value for an individual 
@@ -85,7 +97,7 @@ def score(inEval):
     # Remove inf with 1
     indMatrix = indMatrix.replace([np.inf, -np.inf], 1)
     # Linear regression with elastic net
-    regr = ElasticNetCV(cv=5, random_state=0, max_iter=5000)
+    regr = ElasticNetCV(cv=5, random_state=0, max_iter=2000)
     regr.fit(indMatrix,y)
     return (regr.score(indMatrix,y))
 
@@ -98,9 +110,10 @@ def getCrossover(crossEle1, crossEle2):
         return np.intersect1d(crossEle1, crossEle2)
     elif ranOp == "sym_diff":
         return crossEle1.symmetric_difference(crossEle2)
-    
+   
 # Crossover for next generation
 def crossover(gen,pc):
+    # The function still returns dublicates 
     lenGen = len(gen)
     numCross = int(pc*lenGen)
     i = 0
@@ -117,32 +130,44 @@ def crossover(gen,pc):
         #Selecting random values from the population for crossover
         crossArray = gen[np.random.choice(gen.shape[0],numCross , replace = False), :]
         crossArray = crossArray[crossArray[:,1].argsort()[::-1]]
-        if numCross == 0:
+        if numCross == 0 or numCross == 1:
             break
-        elif numCross == 1:
-            crossGen = np.append(crossGen, crossArray[0,0])
         else:
-            crossGen = np.append(crossGen,getCrossover(crossArray[0,0], crossArray[1,0]))
-        i = i+1        
+            crossEle = getCrossover(crossArray[0,0], crossArray[1,0])
+            if(crossEle not in gen and crossEle not in crossGen):
+                crossGen = np.append(crossGen,crossEle)
+                i = i+1       
     gen = gen[gen[:,1].argsort()[::-1]]
     # Selection and crossover to the new generation 
     newGen = gen[:,0]
     #print("numCross", numCross, "lenGen", lenGen)
     newGen[lenGen - len(crossGen):] = crossGen
     newGen = np.reshape(newGen,(len(newGen),1))
+    #print("NewGen",newGen)
+    #print("Cross Lenght",len(newGen))
     return newGen
+
 
 # Mutation for next generation  
 def mutation(gen, pm):
+    gen= crossover(gen,pc)
     lenGen = len(gen)
-    mutArray = gen[np.random.choice(gen.shape[0],int(pm*lenGen), replace = False), :]
+    mutArray2 = copy.deepcopy(gen[np.random.choice(gen.shape[0],int(pm*lenGen), replace = False), :])
+    mutArray = copy.deepcopy(mutArray2)
     for genEle in mutArray:
         n = np.random.choice(2)
         if (n%2 == 0 or len(genEle[0])==1):
-            genEle[0].add(randFeature())
+            while True:
+                genEle[0].add(randFeature())
+                if (len(mutArray) == len(np.unique(mutArray)) and genEle[0] not in gen):
+                    break
         else:
-            genEle[0].pop()
-    newGen = np.setdiff1d(gen, mutArray)
+            while True:
+                genEle[0].pop()
+                if (len(mutArray) == len(np.unique(mutArray)) and genEle[0] not in gen):
+                    break
+                genEle[0].add(randFeature())        
+    newGen = np.setdiff1d(gen, mutArray2)
     newGen = np.append(newGen,mutArray)
     newGen = np.reshape(newGen,(len(newGen),1))
     return newGen
@@ -150,16 +175,17 @@ def mutation(gen, pm):
 # Main function
 def geneticAlgorithm():
     # Number of iterations of genetic algorithm 
-    iterations = 10
+    iterations = 30
     i = 0
     # Crossover probability:
     # Used for calculating the population percentage for crossover 
-    pc = 0.5
+    pc = 0.4
     # Mutation probability:
     # Used for calculating the population percentage for mutation 
-    pm = 0.5
+    pm = 0.1
     # Initial population
     newGen = init()
+    print(newGen)
     indbest = set()
     fbest = 0 
     while i < iterations:
