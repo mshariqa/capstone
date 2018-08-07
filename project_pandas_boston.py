@@ -19,7 +19,7 @@ def replaceZeroes(data):
     data[data == 0] = 10**-4
     return data
 
-test = pd.read_csv("kc_house_data.csv")
+test = pd.read_csv("boston_house_data.csv")
 test.shape
 
 #Normalizing the dataset ussing preprocessing
@@ -250,7 +250,7 @@ for i in range(10):
     res.loc[i] = [indbest,fbest]
 
 res
-res.to_csv("kc_housing_result.csv", encoding='utf-8', index=True)
+res.to_csv("boston_housing_result.csv", encoding='utf-8', index=True)
 
 # Elastic net without GA
 regr = ElasticNetCV(cv=5, random_state=0, max_iter=2000)
