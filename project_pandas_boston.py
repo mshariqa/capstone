@@ -35,6 +35,7 @@ test = pd.DataFrame(x_scaled)
 #test.columns = ['X1','X2','X3','X4','X5','y']
 XColsSize = test.shape[1] - 1
 XColsName = ['X{}'.format(x+1) for x in range(0, XColsSize)]
+FFXColsName = np.copy(XColsName)
 XColsName.append('y')
 XColsName
 
@@ -272,8 +273,20 @@ scores = cross_val_score(lm, X, y, scoring="r2", cv=5)
 np.average(scores)
 
 #  If we take the mean of the training data as a constant prediction for y
-from sklearn.metrics import r2_score
-y_true = y
-y_pred = y.copy()
-y_pred[:] = np.mean(y)
+from sklearn.metrics import r2_score, mean_squared_error
+y_true = y_test
+y_pred = y_test.copy()
+y_pred[:] = np.mean(y_test)
 r2_score(y_true, y_pred)
+mean_squared_error(y_true, y_pred)
+
+## FFX
+import ffx
+models = ffx.run(X_train, y_train, X_test, y_test, FFXColsName)
+
+X_test_matrix = X_test.as_matrix()
+
+for model in models:
+    yhat = model.simulate(X_test_matrix)
+    print(r2_score(y_true, yhat))
+    print(model)

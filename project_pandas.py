@@ -4,7 +4,6 @@ Created on Sat May 26 13:51:55 2018
 
 @author: Isha and Shariq
 """
-
 #python -m pip install ffx
 
 import random
@@ -40,8 +39,6 @@ XColsName = ['X{}'.format(x+1) for x in range(0, XColsSize)]
 FFXColsName = np.copy(XColsName)
 XColsName.append('y')
 XColsName
-
-
 test.columns = XColsName
 
 X = test.iloc[:,:-1]
@@ -93,7 +90,7 @@ def updatedEvalString(s):
         s = str.format("X['{0}']*X['{1}']",s[0:pos],s[pos+1:])
     return s
 
-# Calculate R^2 value for an individual 
+# Calculate R^2 value for an individual using elastic net
 def score(inEval):
     indMatrix = pd.DataFrame()
     i=0
@@ -111,9 +108,10 @@ def score(inEval):
     # Linear regression with elastic net
     regr = ElasticNetCV(cv=5, random_state=0, max_iter=5000)
     regr.fit(indMatrix,y)
-    
     return (regr.score(indMatrix,y))
 
+# Calculate R^2 value for an individual using linear regression
+# Currently not being used
 def linearRegressionScore(inEval):
     indMatrix = pd.DataFrame()
     i=0
@@ -128,14 +126,11 @@ def linearRegressionScore(inEval):
         i = i+1
     # Remove inf with 1
     indMatrix = indMatrix.replace([np.inf, -np.inf], 1)
-    
     # Linear regression
     lm = LinearRegression()
     lm.fit(X, y)
-
     scores = cross_val_score(lm, X, y, scoring="r2", cv=5)
     return (np.average(scores))
-
     
 # Set crossover function
 def getCrossover(crossEle1, crossEle2):
@@ -147,7 +142,7 @@ def getCrossover(crossEle1, crossEle2):
     elif ranOp == "sym_diff":
         return crossEle1.symmetric_difference(crossEle2)
    
-# Crossover for next generation
+# Generate crossover for next generation
 def crossover(gen,pc):
     # The function still returns dublicates 
     lenGen = len(gen)
@@ -221,6 +216,7 @@ def geneticAlgorithm():
     # Initial population
     newGen = init()
     print(newGen)
+    # Variable to store the best individual and its R2 value
     indbest = set()
     fbest = 0 
     while i < generation:
@@ -253,25 +249,29 @@ def geneticAlgorithm():
     print("Final best Individual:",indbest)
     print("Final best fitness:",fbest)
     return indbest, fbest
-    
+
+# Code for multiple runs to store best individual and R2 value for each run
 res = pd.DataFrame(columns=('ind', 'R2'))
 for i in range(10):
     indbest, fbest = geneticAlgorithm()
     res.loc[i] = [indbest,fbest]
 
+# Code to dump the result of best individual and R2 value for each run
 res
 res.to_csv("kc_housing_result.csv", encoding='utf-8', index=True)
 
+# Other algorithms for comparision 
 # Elastic net without GA
 regr = ElasticNetCV(cv=5, random_state=0, max_iter=2000)
 regr.fit(X,y)
 regr.score(X,y)
+print(regr.coef_)
+print(regr.intercept_)
 
 # Linear Regression without GA
 lm = LinearRegression()
 lm.fit(X, y)
-
-scores = cross_val_score(lm, X, y, scoring="mean_squared_error", cv=5)
+scores = cross_val_score(lm, X, y, scoring="r2", cv=5)
 np.average(scores)
 
 #  If we take the mean of the training data as a constant prediction for y
@@ -282,7 +282,8 @@ y_pred[:] = np.mean(y_test)
 r2_score(y_true, y_pred)
 mean_squared_error(y_true, y_pred)
 
-## FFX
+# FFX code
+# FFXColsName is the predictors name for each column
 import ffx
 models = ffx.run(X_train, y_train, X_test, y_test, FFXColsName)
 
