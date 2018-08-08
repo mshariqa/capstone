@@ -14,6 +14,7 @@ from sklearn import preprocessing
 from sklearn.linear_model import ElasticNetCV
 from sklearn.model_selection import cross_val_score
 from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
 
 def replaceZeroes(data):
     data[data == 0] = 10**-4
@@ -43,6 +44,11 @@ test.columns = XColsName
 
 X = test.iloc[:,:-1]
 y = test.iloc[:,-1]
+
+# create training and testing datasets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+print(X_train.shape, y_train.shape)
+print(X_test.shape, y_test.shape)
 
 # List of non-linear functions for feature transformation
 funList = ["np.log", "*", "np.exp", "np.sqrt"]
