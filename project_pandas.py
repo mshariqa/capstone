@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import re
 from sklearn import preprocessing
+from sklearn.linear_model import ElasticNet
 from sklearn.linear_model import ElasticNetCV
 from sklearn.model_selection import cross_val_score
 from sklearn.linear_model import LinearRegression
@@ -22,6 +23,7 @@ def replaceZeroes(data):
     return data
 
 test = pd.read_csv("kc_house_data.csv")
+
 test.shape
 
 #Normalizing the dataset ussing preprocessing
@@ -91,7 +93,7 @@ def updatedEvalString(s):
     return s
 
 # Calculate R^2 value for an individual using elastic net
-def score(inEval):
+def score(inEval, X, y):
     indMatrix = pd.DataFrame()
     i=0
     listEval = list(inEval)
@@ -105,14 +107,22 @@ def score(inEval):
         i = i+1
     # Remove inf with 1
     indMatrix = indMatrix.replace([np.inf, -np.inf], 1)
+    
     # Linear regression with elastic net
-    regr = ElasticNetCV(cv=5, random_state=0, max_iter=5000)
-    regr.fit(indMatrix,y)
+    """
+    regr = ElasticNet(random_state=0, l1_ratio = 0.1)
+    regr.fit(indMatrix,y_train)
+    
+    
+    y_p = regr.predict(indMatrix)
+    regr.score(indMatrix,y_train)"""
+    regr = ElasticNetCV(cv=2, random_state=0, max_iter=5000)
+    regr.fit(indMatrix,y)    
     return (regr.score(indMatrix,y))
 
 # Calculate R^2 value for an individual using linear regression
 # Currently not being used
-def linearRegressionScore(inEval):
+def linearRegressionScore(inEval, X, y):
     indMatrix = pd.DataFrame()
     i=0
     listEval = list(inEval)
@@ -155,7 +165,7 @@ def crossover(gen,pc):
     # Added R^2 element in gen
     gen = np.append(gen, r2, axis=1)
     for genEle in gen:
-        genEle[1] = score(genEle[0])
+        genEle[1] = score(genEle[0], X_train, y_train)
     #Calulation score for the randomly selected individual from population
     while i<numCross:
         #Selecting random values from the population for crossover
@@ -205,7 +215,7 @@ def mutation(gen, pm):
 # Main function
 def geneticAlgorithm():
     # Number of iterations of genetic algorithm 
-    generation = 10
+    generation = 50
     i = 0
     # Crossover probability:
     # Used for calculating the population percentage for crossover 
@@ -226,7 +236,7 @@ def geneticAlgorithm():
         newGen = np.append(newGen, r2, axis=1)
         # Calculates the R^2 score corresponding to each individual 
         for genEle in newGen:
-            genEle[1] = score(genEle[0])
+            genEle[1] = score(genEle[0], X_train, y_train)
         
         # Sort individual as per their r^2 values 
         newGen = newGen[newGen[:,1].argsort()[::-1]]
@@ -262,7 +272,7 @@ res.to_csv("kc_housing_result.csv", encoding='utf-8', index=True)
 
 # Other algorithms for comparision 
 # Elastic net without GA
-regr = ElasticNetCV(cv=5, random_state=0, max_iter=2000)
+regr = ElasticNetCV(cv=5, random_state=0, max_iter=5000)
 regr.fit(X,y)
 regr.score(X,y)
 print(regr.coef_)

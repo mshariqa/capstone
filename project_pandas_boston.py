@@ -12,6 +12,7 @@ import numpy as np
 import re
 from sklearn import preprocessing
 from sklearn.linear_model import ElasticNetCV
+from sklearn.linear_model import ElasticNet
 from sklearn.model_selection import cross_val_score
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
@@ -92,7 +93,7 @@ def updatedEvalString(s):
     return s
 
 # Calculate R^2 value for an individual 
-def score(inEval):
+def score(inEval, X, y):
     indMatrix = pd.DataFrame()
     i=0
     listEval = list(inEval)
@@ -107,7 +108,7 @@ def score(inEval):
     # Remove inf with 1
     indMatrix = indMatrix.replace([np.inf, -np.inf], 1)
     # Linear regression with elastic net
-    regr = ElasticNetCV(cv=5, random_state=0, max_iter=5000)
+    regr = ElasticNetCV(cv=2, random_state=0, max_iter=5000)
     regr.fit(indMatrix,y)
     
     return (regr.score(indMatrix,y))
@@ -158,7 +159,7 @@ def crossover(gen,pc):
     # Added R^2 element in gen
     gen = np.append(gen, r2, axis=1)
     for genEle in gen:
-        genEle[1] = score(genEle[0])
+        genEle[1] = score(genEle[0],X_train, y_train)
     #Calulation score for the randomly selected individual from population
     while i<numCross:
         #Selecting random values from the population for crossover
@@ -228,7 +229,7 @@ def geneticAlgorithm():
         newGen = np.append(newGen, r2, axis=1)
         # Calculates the R^2 score corresponding to each individual 
         for genEle in newGen:
-            genEle[1] = score(genEle[0])
+            genEle[1] = score(genEle[0],X_train, y_train)
         
         # Sort individual as per their r^2 values 
         newGen = newGen[newGen[:,1].argsort()[::-1]]
@@ -259,6 +260,36 @@ for i in range(10):
 
 res
 res.to_csv("boston_housing_result.csv", encoding='utf-8', index=True)
+
+indbest, fbest = geneticAlgorithm()
+
+def evaluatedMatrix(inEval, X):
+    indMatrix = pd.DataFrame()
+    i=0
+    listEval = list(indbest)
+    for ele in listEval:
+        evalString = updatedEvalString(ele)
+        #Exception handling against log(0)
+        try:
+            indMatrix[str.format('col{0}',i)] = eval(evalString)    
+        except ZeroDivisionError:
+            continue     
+        i = i+1
+    # Remove inf with 1
+    indMatrix = indMatrix.replace([np.inf, -np.inf], 1)
+    return indMatrix
+
+def calculateAccuracy(indbest, X_train, y_train, X_test, y_test):
+    evalTrain = evaluatedMatrix(indbest, X_train)
+    evalTest = evaluatedMatrix(indbest, X_test)
+    
+    # Linear regression with elastic net
+    regr = ElasticNet(random_state=0, l1_ratio = 0, max_iter = 5000, alpha = 1,tol=1)
+    regr.fit(evalTrain,y_train)
+    y_pred = regr.predict(evalTest)
+    print(r2_score(y_test, y_pred))
+
+calculateAccuracy(indbest, X_train, y_train, X_test, y_test)
 
 # Elastic net without GA
 regr = ElasticNetCV(cv=5, random_state=0, max_iter=2000)
