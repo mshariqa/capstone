@@ -130,11 +130,9 @@ def score(inEval, X, y):
     indMatrix = evaluatedMatrix(listEval, X)
     
     # Linear regression with elastic net
-    regr = ElasticNet(random_state=0, l1_ratio=0.1, alpha = 1)
+    regr = ElasticNet(random_state=0, l1_ratio=0, alpha = 1)
     regr.fit(indMatrix,y)
     return (regr.score(indMatrix,y))
-
-score({"np.log10(X1)","X1*X2"}, X_train, y_train)
 
 def linearRegressionScore(inEval):
     indMatrix = pd.DataFrame()
@@ -200,7 +198,6 @@ def sortby(somelist, n):
 
 # Crossover for next generation
 def crossover(gen,pc):
-    gen = init()
     # The function still returns dublicates 
     lenGen = len(gen)
     numCross = int(pc*lenGen)
@@ -264,7 +261,6 @@ def geneticAlgorithm():
     pm = 0.5
     # Initial population
     newGen = init()
-    print(newGen)
     indbest = set()
     fbest = 0 
     while i < generation:
@@ -284,7 +280,7 @@ def geneticAlgorithm():
             fbest = newGen[0,1]
         
         print("iterations:",i)
-        #print("Best Individual:",indbest)
+        print("Best Individual:",indbest)
         print("Best fitness:",fbest)
         
         # Crossover for next generation
@@ -297,13 +293,13 @@ def geneticAlgorithm():
     print("Final best fitness:",fbest)
     return indbest, fbest
     
-res = pd.DataFrame(columns=('ind', 'R2'))
+"""res = pd.DataFrame(columns=('ind', 'R2'))
 for i in range(10):
     indbest, fbest = geneticAlgorithm()
     res.loc[i] = [indbest,fbest]
 
 res
-res.to_csv("boston_housing_result.csv", encoding='utf-8', index=True)
+res.to_csv("boston_housing_result.csv", encoding='utf-8', index=True)"""
 
 indbest, fbest = geneticAlgorithm()
 
