@@ -19,14 +19,28 @@ from sklearn.metrics import r2_score, mean_squared_error
 import matplotlib.pyplot as plt
 from operator import itemgetter
 import warnings
+import winsound
+import time
+frequency = 2500  # Set Frequency To 2500 Hertz
+duration = 1000  # Set Duration To 1000 ms == 1 second
 
 warnings.filterwarnings("ignore")
+
+# Crossover probability of set operations
+PROB_UNION = 0.3
+PROB_INTERSECTION = 0.1
+PROB_SYMDIFF = 0.3
+PROB_ELEMENTCROSSOVER = 0.3
+
+# Mutation probability for ADD and REMOVE
+PROB_ADD = 0.6
+PROB_REMOVE = 0.4
 
 def replaceZeroes(data):
     data[data == 0] = 10**-4
     return data
 
-test = pd.read_csv("baseball.csv")
+test = pd.read_csv("boston_house_data.csv")
 test.shape
 
 #Normalizing the dataset ussing preprocessing
@@ -51,9 +65,12 @@ X = test.iloc[:,:-1]
 y = test.iloc[:,-1]
 
 # create training and testing datasets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state = 0)
 print(X_train.shape, y_train.shape)
 print(X_test.shape, y_test.shape)
+
+# regularization variable for individual's size
+max_len = int(X.shape[1]*15)
 
 # List of non-linear functions for feature transformation
 funList = ["np.log", 
@@ -70,12 +87,12 @@ setOpList = ["union",
              "elementCrossover"
              ]
 
-# regularization variable for individual's size
-max_len = int(X.shape[1]*5)
+
 
 # Function to create random non linear features 
 def randFeature():
     ranFun = random.choice(funList)
+    #ranFun = np.random.choice(funList, p = [0.2,0.2,0.2,0.2,0,0.2])
     if ranFun == "*":
         return ''.join([random.choice(X.columns),ranFun,random.choice(X.columns)])
     else:
@@ -84,7 +101,7 @@ def randFeature():
 # Creates initial population
 def init():
     gen1 = np.array([])
-    while len(gen1) < 50:
+    while len(gen1) < 100:
         n=random.randint(1,X.shape[1])
         setOfInd = set()
         while len(setOfInd) < n:
@@ -121,7 +138,8 @@ def evaluatedMatrix(inEval, X):
             continue     
         i = i+1
     # Remove inf with 1
-    indMatrix = indMatrix.replace([np.inf, -np.inf], 1)
+    indMatrix = indMatrix.replace([np.inf], 1)
+    indMatrix = indMatrix.replace([-np.inf], 0.0001)
     return indMatrix
 
 # Calculate R^2 value for an individual 
@@ -137,28 +155,6 @@ def score(inEval, X, y):
     regr.fit(indMatrix,y)
     return (regr.score(indMatrix,y))
 
-def linearRegressionScore(inEval):
-    indMatrix = pd.DataFrame()
-    i=0
-    listEval = list(inEval)
-    for ele in listEval:
-        evalString = updatedEvalString(ele)
-        #Exception handling against log(0)
-        try:
-            indMatrix[str.format('col{0}',i)] = eval(evalString)    
-        except ZeroDivisionError:
-            continue     
-        i = i+1
-    # Remove inf with 1
-    indMatrix = indMatrix.replace([np.inf, -np.inf], 1)
-    
-    # Linear regression
-    lm = LinearRegression()
-    lm.fit(X, y)
-
-    scores = cross_val_score(lm, X, y, scoring="r2", cv=5)
-    return (np.average(scores))
-
 # Select an element from the one parent and add it to other parent
 def elementCrossover(crossEle1, crossEle2):
     n=random.randint(0,1)
@@ -172,11 +168,6 @@ def elementCrossover(crossEle1, crossEle2):
     except KeyError as err:
         print('Handling run-time error:', err)
 
-# Crossover probability of set operations
-PROB_UNION = 0.3
-PROB_INTERSECTION = 0.1
-PROB_SYMDIFF = 0.3
-PROB_ELEMENTCROSSOVER = 0.3
 
 # Set crossover function
 def getCrossover(crossEle1, crossEle2):
@@ -191,8 +182,8 @@ def getCrossover(crossEle1, crossEle2):
         return elementCrossover(crossEle1, crossEle2)
 
 # Sort method
-def sortby(somelist, n):
-    nlist = [(x[n], x) for x in somelist]
+def sortby(gen, n):
+    nlist = [(x[n], x) for x in gen]
     try:
         nlist = sorted(nlist, key=itemgetter(0), reverse = True)
     except ValueError:
@@ -201,7 +192,6 @@ def sortby(somelist, n):
 
 # Crossover for next generation
 def crossover(gen,pc):
-    # The function still returns dublicates 
     lenGen = len(gen)
     numCross = int(pc*lenGen)
     i = 0
@@ -228,10 +218,6 @@ def crossover(gen,pc):
     newGen = np.reshape(newGen,(len(newGen),1))
     return newGen
 
-# Mutation probability for ADD and REMOVE
-PROB_ADD = 0.5
-PROB_REMOVE = 0.5
-
 # Mutation for next generation  
 def mutation(gen, pm):
     lenGen = len(gen)
@@ -255,17 +241,84 @@ def mutation(gen, pm):
     newGen = np.reshape(newGen,(len(newGen),1))
     return newGen
 
+def coefStr(x):
+    """Gracefully print a number to 3 significant digits.  See _testCoefStr in
+    unit tests"""
+    if x == 0.0:
+        s = '0'
+    elif np.abs(x) < 1e-4: s = ('%.2e' % x).replace('e-0', 'e-')
+    elif np.abs(x) < 1e-3: s = '%.6f' % x
+    elif np.abs(x) < 1e-2: s = '%.5f' % x
+    elif np.abs(x) < 1e-1: s = '%.4f' % x
+    elif np.abs(x) < 1e0:  s = '%.3f' % x
+    elif np.abs(x) < 1e1:  s = '%.2f' % x
+    elif np.abs(x) < 1e2:  s = '%.1f' % x
+    elif np.abs(x) < 1e4:  s = '%.0f' % x
+    else:                     s = ('%.2e' % x).replace('e+0', 'e')
+    return s
+
+# Calculates test accuracy for an individual 
+def calculateAccuracy(indbest, X_train, y_train, X_test, y_test):
+    indbest = list(indbest) 
+    evalTrain = evaluatedMatrix(indbest, X_train)
+    evalTest = evaluatedMatrix(indbest, X_test)
+    
+    # Linear regression with elastic net
+    regr = ElasticNetCV(random_state=0)
+    regr.fit(evalTrain,y_train)
+    y_pred = regr.predict(evalTest)
+    print("Test Accuracy: ", r2_score(y_test, y_pred))
+    return r2_score(y_test, y_pred)
+
+# Sort method
+def sortCoef(indbest, coef):
+    nlist = [(y, x) for x,y in zip(indbest, coef)]
+    try:
+        nlist = sorted(nlist, key=itemgetter(0), reverse = True)
+    except ValueError:
+        print("Error nlist:", nlist)
+    return [val for (key, val) in nlist], [key for (key, val) in nlist]
+
+# Calculates test accuracy for an individual and print the model cost function
+def calculateAccuracyWithModel(indbest, X_train, y_train, X_test, y_test):
+    indbest = list(indbest) 
+    evalTrain = evaluatedMatrix(indbest, X_train)
+    evalTest = evaluatedMatrix(indbest, X_test)
+    
+    # Linear regression with elastic net
+    regr = ElasticNetCV(random_state=0)
+    regr.fit(evalTrain,y_train)
+    y_pred = regr.predict(evalTest)
+    print(r2_score(y_test, y_pred))
+    indbest, regr.coef_ = sortCoef(indbest, regr.coef_)
+    model = ""
+    i=0
+    if regr.intercept_ not in [0,-0]:
+        model = str(coefStr(regr.intercept_))
+    for ind in indbest:
+        if regr.coef_[i] not in [0,-0]: 
+            if "-" in str(regr.coef_[i]): 
+                indCoef = str(coefStr(regr.coef_[i]))+"*"+str(ind) 
+            elif len(model) > 0:   
+                indCoef = "+" + str(coefStr(regr.coef_[i]))+"*"+ ind
+            else:
+                indCoef = str(coefStr(regr.coef_[i]))+"*"+ ind
+            model = model + indCoef
+        i = i + 1
+    print(model)
+
+
 # Main function
 def geneticAlgorithm():
     # Number of iterations of genetic algorithm 
-    generation = 5
+    generation = 10
     i = 1
     # Crossover probability:
     # Used for calculating the population percentage for crossover 
     pc = 0.7
     # Mutation probability:
     # Used for calculating the population percentage for mutation 
-    pm = 0.5
+    pm = 0.7
     # Initial population
     newGen = init()
     indbest = set()
@@ -294,8 +347,8 @@ def geneticAlgorithm():
         testAccuracy = np.append(testAccuracy,calculateAccuracy(indbest, X_train, y_train, X_test, y_test))
         
         print("iterations:",i)
-        print("Best Individual:",indbest)
-        print("Best fitness:",fbest)
+        #print("Best Individual:",indbest)
+        #print("Best fitness:",fbest)
         
         # Crossover for next generation
         newGen = crossover(newGen,pc)
@@ -303,82 +356,39 @@ def geneticAlgorithm():
         # Mutation for next generation
         newGen = mutation(newGen,pm)
         i = i+1
-    print("Final best Individual:",indbest)
-    print("Final best fitness:",fbest)
-        
+    #print("Final best Individual:",indbest)
+    #print("Final best fitness:",fbest)
+    calculateAccuracyWithModel(indbest, X_train, y_train, X_test, y_test)
     # Data
-    df=pd.DataFrame({'x': range(1,6), 'y1': trainAccuracy, 'y2':  testAccuracy})
+    """df=pd.DataFrame({'x': range(1,16), 'y1': trainAccuracy, 'y2':  testAccuracy})
  
     # multiple line plot
     plt.plot( 'x', 'y1', data=df, marker='o', markerfacecolor='blue', markersize=12, color='skyblue', linewidth=4, label="trainAccuracy")
     plt.plot( 'x', 'y2', data=df, marker='', color='olive',     linewidth=2, label="testAccuracy")
-    plt.legend()
+    plt.legend()"""
     return indbest, fbest
-    
-"""res = pd.DataFrame(columns=('ind', 'R2'))
-for i in range(10):
+
+start_time = time.time()
+
+res = pd.DataFrame(columns=('ind', 'R2', 'testAccuracy'))
+for i in range(1):
     indbest, fbest = geneticAlgorithm()
-    res.loc[i] = [indbest,fbest]
+    testAccuracy = calculateAccuracy(indbest, X_train, y_train, X_test, y_test)
+    res.loc[i] = [indbest,fbest,testAccuracy]
+
+print("--- %s seconds ---" % (time.time() - start_time))
 
 res
-res.to_csv("boston_housing_result.csv", encoding='utf-8', index=True)"""
+res.to_csv("boston_housing_result_population_25_1.csv", encoding='utf-8', index=True)
 
+# Make a beep sound when finishes
+winsound.Beep(frequency, duration)
+"""
+# if want to run only one time
 indbest, fbest = geneticAlgorithm()
 
-def coefStr(x):
-    """Gracefully print a number to 3 significant digits.  See _testCoefStr in
-    unit tests"""
-    if x == 0.0:
-        s = '0'
-    elif np.abs(x) < 1e-4: s = ('%.2e' % x).replace('e-0', 'e-')
-    elif np.abs(x) < 1e-3: s = '%.6f' % x
-    elif np.abs(x) < 1e-2: s = '%.5f' % x
-    elif np.abs(x) < 1e-1: s = '%.4f' % x
-    elif np.abs(x) < 1e0:  s = '%.3f' % x
-    elif np.abs(x) < 1e1:  s = '%.2f' % x
-    elif np.abs(x) < 1e2:  s = '%.1f' % x
-    elif np.abs(x) < 1e4:  s = '%.0f' % x
-    else:                     s = ('%.2e' % x).replace('e+0', 'e')
-    return s
-
-
-def calculateAccuracy(indbest, X_train, y_train, X_test, y_test):
-    indbest = list(indbest) 
-    evalTrain = evaluatedMatrix(indbest, X_train)
-    evalTest = evaluatedMatrix(indbest, X_test)
-    
-    # Linear regression with elastic net
-    regr = ElasticNetCV(random_state=0)
-    regr.fit(evalTrain,y_train)
-    y_pred = regr.predict(evalTest)
-    print("Test Accuracy: ", r2_score(y_test, y_pred))
-    return r2_score(y_test, y_pred)
-
-def calculateAccuracyWithModel(indbest, X_train, y_train, X_test, y_test):
-    indbest = list(indbest) 
-    evalTrain = evaluatedMatrix(indbest, X_train)
-    evalTest = evaluatedMatrix(indbest, X_test)
-    
-    # Linear regression with elastic net
-    regr = ElasticNetCV(random_state=0)
-    regr.fit(evalTrain,y_train)
-    y_pred = regr.predict(evalTest)
-    print(r2_score(y_test, y_pred))
-    i=0
-    model = str(coefStr(regr.coef_[0]))
-    for ind in indbest:
-        if "-" in str(regr.coef_[i]): 
-            indCoef = str(coefStr(regr.coef_[i]))+"*"+str(ind) 
-        else:   
-            indCoef = "+" + str(coefStr(regr.coef_[i]))+"*"+ ind
-        model = model + indCoef
-        i = i + 1
-    print(model)
-
-calculateAccuracyWithModel(indbest, X_train, y_train, X_test, y_test)
-
 # Elastic net without GA
-regr = ElasticNetCV(cv=5, random_state=0, max_iter=2000)
+regr = ElasticNetCV(random_state=0)
 regr.fit(X_train,y_train)
 regr.score(X_train,y_train)
 
@@ -410,5 +420,8 @@ X_test_matrix = X_test.as_matrix()
 
 for model in models:
     yhat = model.simulate(X_test_matrix)
-    print(r2_score(y_true, yhat))
+    print(r2_score(y_test, yhat))
     print(model)
+    
+
+"""
